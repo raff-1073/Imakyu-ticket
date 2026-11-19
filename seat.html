@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>座席選択｜I-net</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="inet-header">
+  <div class="inet-header-inner">
+    <a class="logo" href="index.html">
+      <span class="logo-main">I-net</span>
+      <span class="logo-sub">今急オンライン予約</span>
+    </a>
+    <nav class="inet-nav">
+      <a href="index.html">列車を予約</a>
+      <a href="calendar.html">空席カレンダー</a>
+      <a href="reservations.html">予約確認・取消</a>
+      <a href="index.html#services">対象サービス</a>
+      <a href="index.html#news">お知らせ</a>
+      <a href="../今急公式サイト/index.html">今急公式サイト</a>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="seat-wrap">
+    <div id="legPanels"></div>
+    <aside class="summary-panel">
+      <h2>予約内容</h2>
+      <dl id="summaryDl"></dl>
+      <div class="pref-box">
+        <label for="prefSel">座席の希望（おまかせ選択用）</label>
+        <select id="prefSel">
+          <option value="">指定なし</option>
+          <option value="window">窓側</option>
+          <option value="aisle">通路側</option>
+          <option value="together">並び席</option>
+        </select>
+        <button class="class-btn" id="autoBtn" type="button">おまかせで自動選択</button>
+      </div>
+      <button class="confirm-btn" id="confirmBtn" disabled>座席を選んでください</button>
+      <p class="demo-note">※試作版のため、実際の予約・決済は行われません。</p>
+    </aside>
+  </div>
+</main>
+
+<footer>
+  <p>I-net（アイネット）｜今坂急行電鉄オンライン予約サイト</p>
+  <p>※このサイトは架空の鉄道会社のデモサイトです。実際の予約・決済は行われません。</p>
+</footer>
+
+<script src="js/data.js"></script>
+<script src="js/app.js"></script>
+<script>
+(function () {
+  const raw = sessionStorage.getItem("inet_booking");
+  const panelsEl = document.getElementById("legPanels");
+  if (!raw) {
+    panelsEl.innerHTML = "<section class='seat-panel'><p>予約の情報が見つかりませんでした。<a href='index.html'>トップから検索してください</a>。</p></section>";
+    return;
+  }
+  const booking = JSON.parse(raw);
+  const pax = booking.pax;
+  const legs = booking.legs.map(l => ({ ...l, date: l.date || booking.date, train: findTrain(l.key) }));
+  if (legs.some(l => !l.train)) {
+    panelsEl.innerHTML = "<section class='seat-panel'><p>列車が見つかりませんでした。<a href='index.html'>トップへ戻る</a></p></section>";
+    return;
+  }
+  const selected = legs.map(() => new Set());
+  const selCar = legs.map(leg => {
+    const cars = carsFor(leg.train, leg.cls);
+    return cars.find(c => vacancyMarkCar(leg.train, leg.date, leg.cls, c).left >= pax) ?? cars[0];
+  });
+
+  legs.forEach((leg, li) => {
+    const panel = document.createElement("section");
+    panel.className = "seat-panel";
+    const dep = trainTimeAt(leg.train, leg.from), arr = trainTimeAt(leg.train, leg.to);
+    panel.innerHTML = "<h2>区間" + (li + 1) + "：" + leg.from + " → " + leg.to + "</h2>" +
+      "<p class='leg-sub'>" + (leg.label ? leg.label + "・" + leg.date + "／" : leg.date + "／") + leg.train.lines.join("・") + " " + trainTitle(leg.train) + " " + dep + "発 → " + arr + "着／" + leg.cls + "</p>" +
+      "<div class='car-chips'></div><p class='car-fac'></p><div class='svc-box'></div>" +
+      "<div class='seat-direction'>◀ 進行方向（" + leg.to + "方面）</div>" +
+      "<div class='seat-map'></div>" +
+      "<div class='legend'><span><i style='background:#eefaf5;border:1.5px solid #00805a'></i>空席</span>" +
+      "<span><i style='background:#00805a'></i>選択中</span>" +
+      "<span><i style='background:#dfe5ea;border:1.5px solid #c3ccd3'></i>予約済み</span></div>";
+    panelsEl.appendChild(panel);
+    const chipsEl = panel.querySelector(".car-chips");
+    const mapEl = panel.querySelector(".seat-map");
+
+    const facEl = panel.querySelector(".car-fac");
+    function renderCars() {
+      facEl.textContent = selCar[li] + "号車の設備：" + carFacilities(leg.train, leg.cls, selCar[li]).join("・");
+      chipsEl.innerHTML = "";
+      for (const car of carsFor(leg.train, leg.cls)) {
+        const v = vacancyMarkCar(leg.train, leg.date, leg.cls, car);
+        const chip = document.createElement("button");
+        chip.type = "button";
+        chip.className = "cls-chip car-chip" + (selCar[li] === car ? " selected" : "");
+        chip.innerHTML = car + "号車 <span class='vacancy " + v.cls + "'>" + v.mark + "</span>";
+        chip.addEventListener("click", () => {
+          if (selCar[li] === car) return;
+          selCar[li] = car;
+          selected[li].clear();
+          renderCars(); renderMap(); renderSummary();
+        });
+        chipsEl.appendChild(chip);
+      }
+    }
+    function renderMap() {
+      mapEl.innerHTML = "";
+      const reserved = reservedSeats(leg.train.key, leg.date, leg.cls, selCar[li]);
+      for (const row of seatLayout(leg.cls)) {
+        const rowEl = document.createElement("div");
+        rowEl.className = "seat-row";
+        const num = document.createElement("span");
+        num.className = "row-num";
+        num.textContent = row.row;
+        rowEl.appendChild(num);
+        for (const seatId of row.seats) {
+          if (seatId === null) {
+            const sp = document.createElement("span");
+            sp.className = "seat aisle-space";
+            rowEl.appendChild(sp);
+            continue;
+          }
+          const btn = document.createElement("button");
+          btn.className = "seat" + (reserved.has(seatId) ? " reserved" : "") + (selected[li].has(seatId) ? " selected" : "");
+          btn.textContent = seatId;
+          btn.disabled = reserved.has(seatId);
+          btn.dataset.leg = li;
+          btn.dataset.seat = seatId;
+          btn.addEventListener("click", () => {
+            if (selected[li].has(seatId)) { selected[li].delete(seatId); btn.classList.remove("selected"); }
+            else {
+              if (selected[li].size >= pax) { alert("人数分（" + pax + "席）まで選択できます。"); return; }
+              selected[li].add(seatId); btn.classList.add("selected");
+            }
+            renderSummary();
+          });
+          rowEl.appendChild(btn);
+        }
+        mapEl.appendChild(rowEl);
+      }
+    }
+    if (leg.cls === "セレストクラス") {
+      const depMin = timeToMin(trainTimeAt(leg.train, leg.from));
+      const meal = depMin < 630 ? "モーニングサービス" : depMin < 960 ? "デイタイムサービス" : "イブニングサービス";
+      leg.service = { meal, drink: "" };
+      const svc = panel.querySelector(".svc-box");
+      svc.innerHTML = "<label>セレストクラス サービス：" + meal + "（時間帯で自動）／ドリンク希望 " +
+        "<select class='svc-drink'><option value=''>指定なし</option><option>コーヒー</option><option>紅茶</option><option>オレンジジュース</option></select></label>";
+      svc.querySelector(".svc-drink").addEventListener("change", e => { leg.service.drink = e.target.value; });
+    }
+    leg._renderMap = renderMap;
+    renderCars();
+    renderMap();
+  });
+
+  const confirmBtn = document.getElementById("confirmBtn");
+  function sortSeats(set) {
+    return [...set].sort((a, b) => parseInt(a) - parseInt(b) || a.localeCompare(b));
+  }
+  function renderSummary() {
+    const jp = bookingPrice(legs.map(l => ({ train: l.train, from: l.from, to: l.to, cls: l.cls, label: l.label || null })));
+    const dateText = booking.roundTrip ? ("往路 " + legs[0].date + "／復路 " + legs[legs.length - 1].date) : booking.date;
+    let html = "<dt>乗車日</dt><dd>" + dateText + "</dd><dt>人数</dt><dd>" + pax + "名</dd>";
+    legs.forEach((leg, li) => {
+      html += "<dt>" + (leg.label || ("区間" + (li + 1))) + "</dt><dd>" + leg.date + "／" + trainTitle(leg.train) + " " + leg.from + "→" + leg.to + "<br>" +
+        leg.cls + "／" + selCar[li] + "号車／座席：" + (selected[li].size ? sortSeats(selected[li]).join("、") : "未選択") + "</dd>";
+    });
+    if (jp) {
+      html += "<dt>お支払い金額</dt><dd class='total-price'>" + yen(jp.total * pax) + "</dd>" +
+        "<dd style='font-weight:400;color:var(--muted);font-size:12px'>（1名あたり " +
+        jp.items.map(i => i.label + yen(i.amount)).join("＋") + "）</dd>";
+    }
+    document.getElementById("summaryDl").innerHTML = html;
+    const done = selected.every(s => s.size === pax);
+    confirmBtn.disabled = !done;
+    confirmBtn.textContent = done ? "この内容で予約する" : "全区間の座席を選んでください";
+  }
+  renderSummary();
+
+  document.getElementById("autoBtn").addEventListener("click", () => {
+    const pref = document.getElementById("prefSel").value;
+    legs.forEach((leg, li) => {
+      const reserved = reservedSeats(leg.train.key, leg.date, leg.cls, selCar[li]);
+      const layout = seatLayout(leg.cls);
+      const free = [];
+      for (const row of layout) for (const s of row.seats) if (s && !reserved.has(s)) free.push(s);
+      let picked = [];
+      if (pref === "together") {
+        for (const row of layout) {
+          const ai = row.seats.indexOf(null);
+          const left = row.seats.slice(0, ai).filter(s => s && !reserved.has(s));
+          const right = row.seats.slice(ai + 1).filter(s => s && !reserved.has(s));
+          const group = left.length >= pax ? left : right.length >= pax ? right : row.seats.filter(s => s && !reserved.has(s));
+          if (group.length >= pax) { picked = group.slice(0, pax); break; }
+        }
+        if (!picked.length) picked = free.slice(0, pax);
+      } else if (pref === "window" || pref === "aisle") {
+        const scored = free.map(s => {
+          const row = layout.find(r => r.seats.includes(s));
+          const idx = row.seats.indexOf(s);
+          const isWindow = idx === 0 || idx === row.seats.length - 1;
+          return { s, score: (pref === "window") === isWindow ? 0 : 1 };
+        }).sort((a, b) => a.score - b.score);
+        picked = scored.slice(0, pax).map(x => x.s);
+      } else {
+        picked = free.slice(0, pax);
+      }
+      selected[li] = new Set(picked);
+      leg._renderMap();
+    });
+    renderSummary();
+  });
+
+  confirmBtn.addEventListener("click", () => {
+    booking.legs = legs.map((leg, li) => ({
+      key: leg.key, from: leg.from, to: leg.to, cls: leg.cls, car: selCar[li], seats: sortSeats(selected[li]), date: leg.date, label: leg.label || null, service: leg.service || null
+    }));
+    sessionStorage.setItem("inet_booking", JSON.stringify(booking));
+    location.href = "complete.html";
+  });
+})();
+</script>
+</body>
+</html>

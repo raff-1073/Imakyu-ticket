@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>I-net｜今急オンライン予約サイト</title>
+<meta name="description" content="今坂急行電鉄のオンライン予約サイト「I-net」。特急・セレストクラス・ノーブルカーの指定席がネットで予約できます。">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="inet-header">
+  <div class="inet-header-inner">
+    <a class="logo" href="index.html">
+      <span class="logo-main">I-net</span>
+      <span class="logo-sub">今急オンライン予約</span>
+    </a>
+    <nav class="inet-nav">
+      <a href="index.html">列車を予約</a>
+      <a href="calendar.html">空席カレンダー</a>
+      <a href="reservations.html">予約確認・取消</a>
+      <a href="#services">対象サービス</a>
+      <a href="#news">お知らせ</a>
+      <a href="../今急公式サイト/index.html">今急公式サイト</a>
+      <button class="login-btn" id="loginBtn" type="button">ログイン</button>
+    </nav>
+  </div>
+</header>
+
+<div class="hero">
+  <img src="images/hero.webp" alt="山あいを走る今急電鉄の特急列車">
+  <div class="hero-copy">
+    <div class="hero-copy-inner">
+      <h1>旅の予約は、I-netで。</h1>
+      <p>高速線・在来線の特急列車、寝台特急の個室、セレストクラス・ノーブルカーの指定席がオンラインで予約できます。乗換のある区間もまとめて予約OK。</p>
+    </div>
+  </div>
+</div>
+
+<main class="wrap">
+  <form class="search-panel" id="searchForm">
+    <h2>列車・座席を検索</h2>
+    <div class="search-grid">
+      <div class="field">
+        <label for="date">乗車日</label>
+        <input type="date" id="date" required>
+      </div>
+      <div class="field">
+        <label for="time">出発時刻（目安）</label>
+        <input type="time" id="time" value="09:00">
+      </div>
+      <div class="field">
+        <label for="pax">人数</label>
+        <select id="pax">
+          <option value="1">1名</option>
+          <option value="2">2名</option>
+          <option value="3">3名</option>
+          <option value="4">4名</option>
+          <option value="5">5名</option>
+          <option value="6">6名</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="clsPref">設備の希望</label>
+        <select id="clsPref">
+          <option value="">指定なし</option>
+          <option value="指定席">指定席</option>
+          <option value="ノーブルカー">ノーブルカー</option>
+          <option value="グリーン車">グリーン車</option>
+          <option value="セレストクラス">セレストクラス</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="tripType">予約の種類</label>
+        <select id="tripType">
+          <option value="oneway">片道</option>
+          <option value="round">往復</option>
+        </select>
+      </div>
+      <div class="field return-field" hidden>
+        <label for="rdate">帰りの乗車日</label>
+        <input type="date" id="rdate">
+      </div>
+      <div class="field return-field" hidden>
+        <label for="rtime">帰りの出発時刻（目安）</label>
+        <input type="time" id="rtime" value="17:00">
+      </div>
+      <div class="station-row">
+        <div class="field">
+          <label for="from">出発駅</label>
+          <input type="text" id="from" class="station-input" value="有坂" autocomplete="off" placeholder="駅名を入力">
+        </div>
+        <button class="swap-btn" id="swapBtn" type="button" title="出発駅と到着駅を入れ替え">⇅</button>
+        <div class="field">
+          <label for="to">到着駅</label>
+          <input type="text" id="to" class="station-input" value="長野" autocomplete="off" placeholder="駅名を入力">
+        </div>
+      </div>
+      <button class="search-btn" type="submit">検索する</button>
+    </div>
+  </form>
+  <div class="fav-bar" id="favBar"></div>
+
+  <section class="section" id="services">
+    <h2>予約できるサービス</h2>
+    <div class="cards">
+      <div class="card">
+        <span class="tag">最上級個室</span>
+        <h3>セレストクラス</h3>
+        <p>すいせい・てんりゅう・うみくら・きぼうに連結の全室個室クラス。1編成16室限定、I-netでの事前予約がおすすめです。</p>
+      </div>
+      <div class="card">
+        <span class="tag">上級車両</span>
+        <h3>ノーブルカー</h3>
+        <p>ゆったりした2＋1列シートの上級車両。全特急列車に連結しています。指定席料金にノーブルカー料金が加算されます。</p>
+      </div>
+      <div class="card">
+        <span class="tag">全線対応</span>
+        <h3>特急指定席・ライナー</h3>
+        <p>高速線・在来線の全特急列車とライナーの指定席を予約できます。座席は座席表からお選びいただけます。</p>
+      </div>
+      <div class="card">
+        <span class="tag">寝台特急</span>
+        <h3>個室（寝台）</h3>
+        <p>ナイトエクスプレス秋川のSUYARIN・A個室・B個室、銀鳥のS・A・B個室が予約できます。個室料金は特急料金に寝台料金を加えた金額です（SUYARINは特急券のみ）。</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <h2>ご利用の流れ</h2>
+    <div class="steps">
+      <div class="step"><span class="step-num">1</span><p><strong>検索する</strong><br>乗車日・区間・人数を入力して、ご希望の列車を探します。</p></div>
+      <div class="step"><span class="step-num">2</span><p><strong>座席を選ぶ</strong><br>空席状況を見ながら、座席表からお好きな席をお選びください。</p></div>
+      <div class="step"><span class="step-num">3</span><p><strong>予約完了</strong><br>予約番号が発行されます。当日は駅窓口・券売機でお受け取りください。</p></div>
+    </div>
+  </section>
+
+  <section class="section" id="news">
+    <h2>お知らせ</h2>
+    <div class="news-list">
+      <div class="news-item"><span class="news-date">2026.11.18</span><span>予約変更・空席カレンダー・チケット表示・お気に入り区間に対応しました。</span></div>
+      <div class="news-item"><span class="news-date">2026.11.18</span><span>往復予約に対応しました。行きと帰りを続けて予約できます。</span></div>
+      <div class="news-item"><span class="news-date">2026.11.18</span><span>在来線特急・寝台特急（個室）・ライナーの予約と、乗換区間の予約に対応しました。</span></div>
+      <div class="news-item"><span class="news-date">2026.11.18</span><span>I-net（試作版）のサービスを開始しました。</span></div>
+      <div class="news-item"><span class="news-date">2026.11.09</span><span>大川線への新型車両導入について、公式サイトのニュースをご覧ください。</span></div>
+      <div class="news-item"><span class="news-date">2026.11.01</span><span>年末年始期間の指定席は、乗車日1か月前の10時から発売します。</span></div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <p>I-net（アイネット）｜今坂急行電鉄オンライン予約サイト</p>
+  <p>※このサイトは架空の鉄道会社のデモサイトです。実際の予約・決済は行われません。</p>
+</footer>
+
+<script src="js/data.js"></script>
+<script src="js/app.js"></script>
+<script>
+(function () {
+  const fromSel = document.getElementById("from");
+  const toSel = document.getElementById("to");
+  setupStationAutocomplete(fromSel);
+  setupStationAutocomplete(toSel);
+  const dateInput = document.getElementById("date");
+  const today = new Date();
+  const iso = d => d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+  dateInput.value = iso(today);
+  dateInput.min = iso(today);
+  const max = new Date(today); max.setDate(max.getDate() + 31);
+  dateInput.max = iso(max);
+  const rdateInput = document.getElementById("rdate");
+  rdateInput.value = iso(today);
+  rdateInput.min = iso(today);
+  rdateInput.max = iso(max);
+  const tripType = document.getElementById("tripType");
+  tripType.addEventListener("change", () => {
+    const round = tripType.value === "round";
+    document.querySelectorAll(".return-field").forEach(el => { el.hidden = !round; });
+    if (round) rdateInput.value = dateInput.value;
+  });
+  dateInput.addEventListener("change", () => {
+    if (tripType.value === "round" && rdateInput.value < dateInput.value) rdateInput.value = dateInput.value;
+  });
+  // お気に入り区間（ブラウザに保存）
+  const favBar = document.getElementById("favBar");
+  function loadFavs() { try { return JSON.parse(localStorage.getItem("inet_favorites") || "[]"); } catch (e) { return []; } }
+  function renderFavs() {
+    const favs = loadFavs();
+    favBar.innerHTML = "";
+    const addBtn = document.createElement("button");
+    addBtn.type = "button";
+    addBtn.className = "class-btn";
+    addBtn.textContent = "☆ 表示中の区間をお気に入り登録";
+    addBtn.addEventListener("click", () => {
+      const favs2 = loadFavs();
+      const pair = { from: fromSel.value, to: toSel.value };
+      if (pair.from === pair.to) { alert("出発駅と到着駅が同じです。"); return; }
+      if (!favs2.some(f => f.from === pair.from && f.to === pair.to)) {
+        favs2.push(pair);
+        try { localStorage.setItem("inet_favorites", JSON.stringify(favs2.slice(0, 8))); } catch (e) {}
+      }
+      renderFavs();
+    });
+    favBar.appendChild(addBtn);
+    for (const f of favs) {
+      const chip = document.createElement("span");
+      chip.className = "fav-chip";
+      chip.innerHTML = f.from + " → " + f.to;
+      chip.addEventListener("click", () => { fromSel.value = f.from; toSel.value = f.to; });
+      const del = document.createElement("span");
+      del.className = "fav-del";
+      del.textContent = "×";
+      del.addEventListener("click", e => {
+        e.stopPropagation();
+        const favs2 = loadFavs().filter(x => !(x.from === f.from && x.to === f.to));
+        try { localStorage.setItem("inet_favorites", JSON.stringify(favs2)); } catch (e) {}
+        renderFavs();
+      });
+      chip.appendChild(del);
+      favBar.appendChild(chip);
+    }
+  }
+  renderFavs();
+  document.getElementById("swapBtn").addEventListener("click", () => {
+    const v = fromSel.value; fromSel.value = toSel.value; toSel.value = v;
+  });
+  document.getElementById("loginBtn").addEventListener("click", () => {
+    alert("I-net会員ログインは試作版では未実装です。\n会員登録なしでも予約できます。");
+  });
+  document.getElementById("searchForm").addEventListener("submit", e => {
+    e.preventDefault();
+    const fromName = resolveStationName(fromSel.value);
+    const toName = resolveStationName(toSel.value);
+    if (!fromName || !toName) { alert("駅名を候補から選んでください。"); return; }
+    fromSel.value = fromName; toSel.value = toName;
+    if (fromName === toName) { alert("出発駅と到着駅が同じです。"); return; }
+    const q = new URLSearchParams({
+      date: dateInput.value,
+      time: document.getElementById("time").value || "",
+      pax: document.getElementById("pax").value,
+      cls: document.getElementById("clsPref").value,
+      from: fromName,
+      to: toName
+    });
+    if (tripType.value === "round") {
+      q.set("mode", "round");
+      q.set("rdate", rdateInput.value);
+      q.set("rtime", document.getElementById("rtime").value || "");
+    }
+    location.href = "trains.html?" + q.toString();
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>チケット｜I-net</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="inet-header">
+  <div class="inet-header-inner">
+    <a class="logo" href="index.html">
+      <span class="logo-main">I-net</span>
+      <span class="logo-sub">今急オンライン予約</span>
+    </a>
+    <nav class="inet-nav">
+      <a href="index.html">列車を予約</a>
+      <a href="calendar.html">空席カレンダー</a>
+      <a href="reservations.html">予約確認・取消</a>
+      <a href="index.html#services">対象サービス</a>
+      <a href="index.html#news">お知らせ</a>
+      <a href="../今急公式サイト/index.html">今急公式サイト</a>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+  <div id="ticketArea"></div>
+</main>
+
+<footer>
+  <p>I-net（アイネット）｜今坂急行電鉄オンライン予約サイト</p>
+  <p>※このサイトは架空の鉄道会社のデモサイトです。実際の予約・決済は行われません。</p>
+</footer>
+
+<script src="js/data.js"></script>
+<script src="js/app.js"></script>
+<script>
+(function () {
+  const id = new URLSearchParams(location.search).get("id") || "";
+  const area = document.getElementById("ticketArea");
+  let r = null;
+  try {
+    const saved = JSON.parse(localStorage.getItem("inet_reservations") || "[]");
+    r = saved.find(x => x.id === id) || null;
+  } catch (e) {}
+  if (!r) {
+    area.innerHTML = "<div class='no-result'><p>チケットが見つかりませんでした。</p><p><a href='reservations.html'>予約確認・取消へ</a></p></div>";
+    return;
+  }
+  // 予約番号から作るイメージコード（デモ用）
+  function qrGrid(seedText) {
+    const rnd = mulberry32(hashSeed(seedText));
+    const N = 21;
+    let cells = "";
+    const finder = (x, y) => (x < 7 && y < 7) || (x >= N - 7 && y < 7) || (x < 7 && y >= N - 7);
+    const finderOn = (x, y) => {
+      const lx = x >= N - 7 ? x - (N - 7) : x, ly = y >= N - 7 ? y - (N - 7) : y;
+      if (lx === 0 || lx === 6 || ly === 0 || ly === 6) return true;
+      return lx >= 2 && lx <= 4 && ly >= 2 && ly <= 4;
+    };
+    for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+      const on = finder(x, y) ? finderOn(x, y) : rnd() < 0.44;
+      cells += "<i class='" + (on ? "on" : "") + "'></i>";
+    }
+    return "<div class='qr'>" + cells + "</div>";
+  }
+  let legsHtml = "";
+  for (const l of r.legs) {
+    legsHtml += "<div class='ticket-leg'>" +
+      "<p class='ticket-route'>" + (l.label ? l.label + "：" : "") + l.from + " → " + l.to + "</p>" +
+      "<p class='ticket-train'>" + l.lines + " " + l.title + "</p>" +
+      "<p class='ticket-time'>" + (l.date || r.date) + "／" + l.dep + "発 → " + l.arr + "着</p>" +
+      "<p class='ticket-seat'>" + l.cls + "／" + (l.car ? l.car + "号車／" : "") + "座席：" + l.seats.join("、") + "</p></div>";
+  }
+  area.innerHTML = "<div class='ticket-card'>" +
+    "<div class='ticket-head'><span class='ticket-logo'>I-net チケット</span><span class='ticket-no'>" + r.no + "</span></div>" +
+    legsHtml +
+    "<div class='ticket-foot'><div><p class='ticket-total'>お支払い金額 " + yen(r.total) + "（" + r.pax + "名）</p>" +
+    "<p class='demo-note'>駅窓口・指定席券売機でお受け取りの際にこの画面をご提示ください。</p></div>" +
+    qrGrid(r.no) + "</div>" +
+    "<p class='demo-note'>※コードはデモ用のイメージです。</p></div>" +
+    "<p style='margin-top:14px'><a class='back-btn' href='reservations.html'>予約確認・取消へ戻る</a></p>";
+})();
+</script>
+</body>
+</html>

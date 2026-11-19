@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>列車の選択｜I-net</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="inet-header">
+  <div class="inet-header-inner">
+    <a class="logo" href="index.html">
+      <span class="logo-main">I-net</span>
+      <span class="logo-sub">今急オンライン予約</span>
+    </a>
+    <nav class="inet-nav">
+      <a href="index.html">列車を予約</a>
+      <a href="calendar.html">空席カレンダー</a>
+      <a href="reservations.html">予約確認・取消</a>
+      <a href="index.html#services">対象サービス</a>
+      <a href="index.html#news">お知らせ</a>
+      <a href="../今急公式サイト/index.html">今急公式サイト</a>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+  <p class="summary-line" id="summaryLine"></p>
+  <div id="outChosen"></div>
+  <div id="results"></div>
+</main>
+
+<footer>
+  <p>I-net（アイネット）｜今坂急行電鉄オンライン予約サイト</p>
+  <p>※このサイトは架空の鉄道会社のデモサイトです。実際の予約・決済は行われません。</p>
+</footer>
+
+<script src="js/data.js"></script>
+<script src="js/app.js"></script>
+<script>
+(function () {
+  const q = new URLSearchParams(location.search);
+  const date = q.get("date") || "";
+  // 運転日（臨時列車・運休）を予約日に合わせて絞り込む
+  const TRAINS = INET_TRAINS.filter(t => trainRunsOnDate(t, date));
+  const time = q.get("time") || "";
+  const pax = parseInt(q.get("pax") || "1", 10);
+  const clsPref = q.get("cls") || "";
+  const from = q.get("from") || "";
+  const to = q.get("to") || "";
+  const round = q.get("mode") === "round";
+  const rdate = q.get("rdate") || date;
+  const rtime = q.get("rtime") || "";
+  const changeId = q.get("change") || "";
+  const resultsEl = document.getElementById("results");
+  const summaryEl = document.getElementById("summaryLine");
+  const outChosenEl = document.getElementById("outChosen");
+  function stationIndex(train, station) { return train.times.findIndex(([s]) => s === station); }
+  // 夜行列車の途中駅発車を検索日の枠に直すためのキー。
+  // 前日発の列車（銀鳥など）は途中駅の発車が繰り上がり表記（1440超）になるため、
+  // そのままでは当日発の列車より後ろに並んで結果から漏れる（2026-11-19）。
+  function depFrameMin(train, station, fromMin) {
+    const m = unwrappedTimes(train)[stationIndex(train, station)];
+    if (m === undefined) return null;
+    const clock = m % 1440;
+    const inWindow = m >= fromMin && m < fromMin + 1440;
+    if (!inWindow && clock < fromMin) return null;
+    return clock >= fromMin && m >= 1440 ? clock : m;
+  }
+  // 発売ルール：乗車日の1か月前から発売（簡易判定）
+  function onSale(dateStr) {
+    if (!dateStr) return true;
+    const parts = dateStr.split("-").map(Number);
+    const rel = new Date(parts[0], parts[1] - 2, Math.min(parts[2], 28));
+    const now = new Date(); now.setHours(0, 0, 0, 0);
+    return now >= rel;
+  }
+  function fmtDuration(mins) {
+    if (mins < 60) return mins + "分";
+    return Math.floor(mins / 60) + "時間" + (mins % 60 ? (mins % 60) + "分" : "");
+  }
+
+  let step = "out";
+  let outLegs = null;
+
+  function trainsBetween(fromSt, toSt, fromMin) {
+    const out = [];
+    for (const t of TRAINS) {
+      const times = unwrappedTimes(t);
+      const fi = stationIndex(t, fromSt), ti = stationIndex(t, toSt);
+      if (fi < 0 || ti < 0 || fi >= ti) continue;
+      if (depFrameMin(t, fromSt, fromMin) === null) continue;
+      out.push({ train: t, from: fromSt, to: toSt });
+    }
+    out.sort((a, b) => depFrameMin(a.train, a.from, fromMin) - depFrameMin(b.train, b.from, fromMin));
+    return out;
+  }
+  function searchJourneys(jFrom, jTo, jTime) {
+    const fromMin = jTime ? timeToMin(jTime) : 0;
+    const journeys = [];
+    for (const leg of trainsBetween(jFrom, jTo, fromMin)) journeys.push({ legs: [leg], transfer: null });
+    const fromLines = new Set(), toLines = new Set();
+    for (const t of TRAINS) {
+      if (stationIndex(t, jFrom) >= 0) for (const l of t.lines) fromLines.add(l);
+      if (stationIndex(t, jTo) >= 0) for (const l of t.lines) toLines.add(l);
+    }
+    let disjoint = true;
+    for (const l of fromLines) if (toLines.has(l)) { disjoint = false; break; }
+    if (disjoint || journeys.length === 0) {
+      const seen = new Set();
+      const firstLegs = [];
+      for (const t of TRAINS) {
+        const fi = stationIndex(t, jFrom);
+        if (fi < 0) continue;
+        if (depFrameMin(t, jFrom, fromMin) === null) continue;
+        firstLegs.push(t);
+      }
+      for (const t1 of firstLegs) {
+        const times1 = unwrappedTimes(t1);
+        const fi1 = stationIndex(t1, jFrom);
+        for (let xi = fi1 + 1; xi < t1.times.length; xi++) {
+          const x = t1.times[xi][0];
+          if (x === jTo) continue;
+          const arrX = times1[xi];
+          for (const t2 of TRAINS) {
+            if (t2 === t1) continue;
+            const xi2 = stationIndex(t2, x), ti2 = stationIndex(t2, jTo);
+            if (xi2 < 0 || ti2 < 0 || xi2 >= ti2) continue;
+            if (!canTransferAt(x, t1.lines, t2.lines)) continue;
+            let wait = unwrappedTimes(t2)[xi2] - arrX;
+            // 第2レグが前日発の夜行列車（秋川など）の場合、発車は繰り上がり表記（1440超）に
+            // なる。翌日運行として解釈できるのは第2レグが当日運行の列車だけなので、
+            // 繰り上がり済みの発車には +1440 しない（赤城→秋川の誤接続防止・2026-11-19）
+            if (wait < 0 && unwrappedTimes(t2)[xi2] < 1440) wait += 1440; // 夜行列車の翌朝接続（第2レグは翌日運行として解釈）
+            if (wait < 0 || wait > 180) continue;
+            const key = t1.key + ">" + x + ">" + t2.key;
+            if (seen.has(key)) continue;
+            seen.add(key);
+            journeys.push({
+              legs: [
+                { train: t1, from: jFrom, to: x },
+                { train: t2, from: x, to: jTo }
+              ],
+              transfer: { station: x, wait }
+            });
+          }
+        }
+      }
+      const byDep = (a, b) => depFrameMin(a.legs[0].train, a.legs[0].from, fromMin) - depFrameMin(b.legs[0].train, b.legs[0].from, fromMin);
+      const directs = journeys.filter(j => !j.transfer).slice(0, 20);
+      const transfers = journeys.filter(j => j.transfer).sort(byDep).slice(0, 8);
+      return [...directs, ...transfers].sort(byDep).slice(0, 12);
+    }
+    return journeys.slice(0, 12);
+  }
+
+  function legClasses(leg) {
+    return availableClasses(leg.train, leg.from, leg.to);
+  }
+  function defaultSel(journey, jDate) {
+    return journey.legs.map(leg => {
+      const pool = legClasses(leg);
+      if (clsPref && pool.includes(clsPref) && vacancyMark(leg.train, jDate, clsPref).mark !== "×") return clsPref;
+      return pool.find(c => vacancyMark(leg.train, jDate, c).mark !== "×") || pool[0];
+    });
+  }
+
+  function renderStep() {
+    const isOut = step === "out";
+    const jFrom = isOut ? from : to;
+    const jTo = isOut ? to : from;
+    const jDate = isOut ? date : rdate;
+    const jTime = isOut ? time : rtime;
+    summaryEl.innerHTML = (changeId ? "<span class='change-note'>予約の変更：新しい列車を選ぶと元の予約と差し替わります。</span><br>" : "") +
+      "<strong>" + (round ? (isOut ? "往路" : "復路") + "：" : "") + jDate + "／" + jFrom + " → " + jTo + "</strong>（" +
+      (jTime ? jTime + "以降" : "全時間帯") + "・" + pax + "名）" +
+      (round ? "　ステップ " + (isOut ? "1/2：往路を選んでください" : "2/2：復路を選んでください") : "");
+    outChosenEl.innerHTML = "";
+    if (round && !isOut && outLegs) {
+      const box = document.createElement("div");
+      box.className = "chosen-box";
+      const desc = outLegs.map(l => {
+        const t = findTrain(l.key);
+        return trainTitle(t) + " " + l.from + " " + trainTimeAt(t, l.from) + "発（" + l.cls + "）";
+      }).join(" → ");
+      box.innerHTML = "<p><strong>往路（選択済み）</strong>：" + date + "／" + desc + "</p>";
+      const back = document.createElement("button");
+      back.type = "button";
+      back.className = "class-btn";
+      back.textContent = "往路を選び直す";
+      back.addEventListener("click", () => { step = "out"; outLegs = null; renderStep(); });
+      box.appendChild(back);
+      outChosenEl.appendChild(box);
+    }
+    resultsEl.innerHTML = "";
+    const journeys = (jFrom && jTo && jFrom !== jTo) ? searchJourneys(jFrom, jTo, jTime) : [];
+    if (!journeys.length) {
+      resultsEl.innerHTML = "<div class='no-result'><p>条件に合う列車が見つかりませんでした。</p><p><a href='index.html'>検索条件を変更する</a></p></div>";
+      return;
+    }
+    for (const journey of journeys) {
+      const sel = defaultSel(journey, jDate);
+      const card = document.createElement("article");
+      card.className = "train-card";
+      const first = journey.legs[0], last = journey.legs[journey.legs.length - 1];
+      const dep = trainTimeAt(first.train, first.from), arr = trainTimeAt(last.train, last.to);
+      const dur = fmtDuration(unwrappedTimes(last.train)[stationIndex(last.train, last.to)] - unwrappedTimes(first.train)[stationIndex(first.train, first.from)]);
+      let html = "<div class='train-head'><div class='train-time'><span class='big'>" + dep + "発 → " + arr + "着</span>" +
+        "<span class='dur'>（" + dur + "）</span></div>" +
+        (journey.transfer ? "<span class='badge-transfer'>乗換1回（" + journey.transfer.station + "）</span>" : "") + "</div>";
+      journey.legs.forEach((leg, li) => {
+        if (li > 0) {
+          html += "<p class='transfer-note'>" + journey.transfer.station + "駅で乗換（待ち時間 " + journey.transfer.wait + "分）</p>";
+        }
+        html += "<div class='leg-block'><p class='leg-title'><span class='leg-lines'>" + leg.train.lines.join("・") + "</span>" + trainTitle(leg.train) + "</p>" +
+          (journey.legs.length > 1 ? "<p class='leg-route'>" + leg.from + " " + trainTimeAt(leg.train, leg.from) + "発 → " + leg.to + " " + trainTimeAt(leg.train, leg.to) + "着</p>" : "") +
+          "<div class='cls-chips' data-leg='" + li + "'></div></div>";
+      });
+      html += "<div class='journey-foot'><span class='journey-total'></span>" +
+        "<button class='proceed-btn' type='button'>座席を選ぶ</button></div>";
+      card.innerHTML = html;
+      const chipBoxes = card.querySelectorAll(".cls-chips");
+      const totalEl = card.querySelector(".journey-total");
+      const proceedBtn = card.querySelector(".proceed-btn");
+      function renderChips() {
+        journey.legs.forEach((leg, li) => {
+          const box = chipBoxes[li];
+          box.innerHTML = "";
+          for (const cls of legClasses(leg)) {
+            const v = vacancyMark(leg.train, jDate, cls);
+            const chip = document.createElement("button");
+            chip.type = "button";
+            chip.className = "cls-chip" + (sel[li] === cls ? " selected" : "");
+            chip.dataset.cls = cls;
+            chip.innerHTML = cls + " <span class='vacancy " + v.cls + "'>" + v.mark + "</span>";
+            if (v.mark === "×") { chip.disabled = true; chip.classList.add("full"); }
+            chip.addEventListener("click", () => { sel[li] = cls; renderChips(); renderTotal(); });
+            box.appendChild(chip);
+          }
+        });
+      }
+      function renderTotal() {
+        const jp = journeyPrice(journey.legs.map((leg, li) => ({ train: leg.train, from: leg.from, to: leg.to, cls: sel[li] })));
+        const full = journey.legs.some((leg, li) => vacancyMark(leg.train, jDate, sel[li]).mark === "×");
+        totalEl.textContent = jp ? (pax === 1 ? "大人1名 " + yen(jp.total) : "大人" + pax + "名 " + yen(jp.total * pax) + "／1名 " + yen(jp.total)) : "料金を計算できません";
+        const sale = onSale(jDate);
+        proceedBtn.disabled = !jp || full || !sale;
+        proceedBtn.textContent = !sale ? "発売前です（1か月前から発売）" : full ? "選択中の設備は満席です" : (round && isOut ? "この往路で復路を選ぶ" : "座席を選ぶ");
+      }
+      renderChips();
+      renderTotal();
+      proceedBtn.addEventListener("click", () => {
+        const legs = journey.legs.map((leg, li) => ({ key: leg.train.key, from: leg.from, to: leg.to, cls: sel[li], seats: [] }));
+        if (round && isOut) {
+          outLegs = legs;
+          step = "ret";
+          window.scrollTo(0, 0);
+          renderStep();
+          return;
+        }
+        let allLegs;
+        if (round) {
+          allLegs = [
+            ...outLegs.map(l => ({ ...l, date, label: "往路" })),
+            ...legs.map(l => ({ ...l, date: rdate, label: "復路" }))
+          ];
+        } else {
+          allLegs = legs.map(l => ({ ...l, date }));
+        }
+        const booking = { id: "bk" + Date.now().toString(36), date, pax, roundTrip: round, legs: allLegs };
+        if (changeId) booking.changeOf = changeId;
+        sessionStorage.setItem("inet_booking", JSON.stringify(booking));
+        location.href = "seat.html";
+      });
+      resultsEl.appendChild(card);
+    }
+  }
+  renderStep();
+})();
+</script>
+</body>
+</html>

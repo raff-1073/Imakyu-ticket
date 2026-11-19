@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>空席カレンダー｜I-net</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="inet-header">
+  <div class="inet-header-inner">
+    <a class="logo" href="index.html">
+      <span class="logo-main">I-net</span>
+      <span class="logo-sub">今急オンライン予約</span>
+    </a>
+    <nav class="inet-nav">
+      <a href="index.html">列車を予約</a>
+      <a href="calendar.html">空席カレンダー</a>
+      <a href="reservations.html">予約確認・取消</a>
+      <a href="index.html#services">対象サービス</a>
+      <a href="index.html#news">お知らせ</a>
+      <a href="../今急公式サイト/index.html">今急公式サイト</a>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+  <form class="search-panel" id="calForm">
+    <h2>空席カレンダー</h2>
+    <div class="search-grid">
+      <div class="field">
+        <label for="from">出発駅</label>
+        <input type="text" id="from" class="station-input" value="有坂" autocomplete="off" placeholder="駅名を入力">
+      </div>
+      <div class="field">
+        <label for="to">到着駅</label>
+        <input type="text" id="to" class="station-input" value="長野" autocomplete="off" placeholder="駅名を入力">
+      </div>
+      <div class="field">
+        <label for="cls">設備</label>
+        <select id="cls">
+          <option value="指定席">指定席</option>
+          <option value="ノーブルカー">ノーブルカー</option>
+          <option value="グリーン車">グリーン車</option>
+          <option value="セレストクラス">セレストクラス</option>
+          <option value="SUYARIN">SUYARIN</option>
+          <option value="B個室">B個室</option>
+          <option value="A個室">A個室</option>
+          <option value="S個室">S個室</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="start">開始日</label>
+        <input type="date" id="start">
+      </div>
+      <button class="search-btn" type="submit">表示する</button>
+    </div>
+    <p class="demo-note">直通列車のみ表示します。マスを押すと、その日の予約画面に進みます。発売前の日は「発売前」と表示されます。</p>
+  </form>
+  <div id="calResult" style="margin-top:18px"></div>
+</main>
+
+<footer>
+  <p>I-net（アイネット）｜今坂急行電鉄オンライン予約サイト</p>
+  <p>※このサイトは架空の鉄道会社のデモサイトです。実際の予約・決済は行われません。</p>
+</footer>
+
+<script src="js/data.js"></script>
+<script src="js/app.js"></script>
+<script>
+(function () {
+  const fromSel = document.getElementById("from");
+  const toSel = document.getElementById("to");
+  setupStationAutocomplete(fromSel);
+  setupStationAutocomplete(toSel);
+  const iso = d => d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+  const startInput = document.getElementById("start");
+  startInput.value = iso(new Date());
+  function stationIndex(train, station) { return train.times.findIndex(([s]) => s === station); }
+  function onSale(dateStr) {
+    const parts = dateStr.split("-").map(Number);
+    const rel = new Date(parts[0], parts[1] - 2, Math.min(parts[2], 28));
+    const now = new Date(); now.setHours(0, 0, 0, 0);
+    return now >= rel;
+  }
+  function render() {
+    const from = resolveStationName(fromSel.value), to = resolveStationName(toSel.value), cls = document.getElementById("cls").value;
+    if (!from || !to) {
+      document.getElementById("calResult").innerHTML = "<div class='no-result'><p>駅名を候補から選んでください。</p></div>";
+      return;
+    }
+    const start = new Date(startInput.value + "T00:00:00");
+    const days = [];
+    for (let i = 0; i < 7; i++) { const d = new Date(start); d.setDate(d.getDate() + i); days.push(d); }
+    const trains = INET_TRAINS.filter(t => {
+      const fi = stationIndex(t, from), ti = stationIndex(t, to);
+      if (!(fi >= 0 && ti >= 0 && fi < ti)) return false;
+      // 選択した設備を持たない列車は行ごと除外する
+      return t.classes.includes(cls) && legPrice(t, from, to, cls) !== null;
+    }).sort((a, b) => timeToMin(trainTimeAt(a, from)) - timeToMin(trainTimeAt(b, from)));
+    const el = document.getElementById("calResult");
+    if (!trains.length) {
+      el.innerHTML = "<div class='no-result'><p>" + from + " → " + to + " で「" + cls + "」を予約できる直通列車がありません。</p></div>";
+      return;
+    }
+    let html = "<div class='cal-scroll'><table class='cal-table'><thead><tr><th>列車</th>";
+    for (const d of days) html += "<th>" + (d.getMonth() + 1) + "/" + d.getDate() + "<br>(" + "日月火水木金土"[d.getDay()] + ")</th>";
+    html += "</tr></thead><tbody>";
+    for (const t of trains) {
+      html += "<tr><td class='cal-train'>" + trainTitle(t) + "<br><span>" + trainTimeAt(t, from) + "発 → " + trainTimeAt(t, to) + "着</span></td>";
+      for (const d of days) {
+        const ds = iso(d);
+        if (!onSale(ds)) { html += "<td class='cal-cell off'>発売前</td>"; continue; }
+        if (!t.classes.includes(cls) || legPrice(t, from, to, cls) === null) { html += "<td class='cal-cell off'>―</td>"; continue; }
+        const v = vacancyMark(t, ds, cls);
+        html += "<td class='cal-cell'><a href='trains.html?date=" + ds + "&time=" + trainTimeAt(t, from) + "&pax=1&cls=" + encodeURIComponent(cls) + "&from=" + encodeURIComponent(from) + "&to=" + encodeURIComponent(to) + "'><span class='vacancy " + v.cls + "'>" + v.mark + "</span></a></td>";
+      }
+      html += "</tr>";
+    }
+    html += "</tbody></table></div>";
+    el.innerHTML = html;
+  }
+  document.getElementById("calForm").addEventListener("submit", e => { e.preventDefault(); render(); });
+  render();
+})();
+</script>
+</body>
+</html>

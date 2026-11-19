@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>予約確認・取消｜I-net</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="inet-header">
+  <div class="inet-header-inner">
+    <a class="logo" href="index.html">
+      <span class="logo-main">I-net</span>
+      <span class="logo-sub">今急オンライン予約</span>
+    </a>
+    <nav class="inet-nav">
+      <a href="index.html">列車を予約</a>
+      <a href="calendar.html">空席カレンダー</a>
+      <a href="reservations.html">予約確認・取消</a>
+      <a href="index.html#services">対象サービス</a>
+      <a href="index.html#news">お知らせ</a>
+      <a href="../今急公式サイト/index.html">今急公式サイト</a>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="section">
+    <h2>予約確認・取消</h2>
+    <div id="list"></div>
+  </section>
+</main>
+
+<footer>
+  <p>I-net（アイネット）｜今坂急行電鉄オンライン予約サイト</p>
+  <p>※このサイトは架空の鉄道会社のデモサイトです。実際の予約・決済は行われません。</p>
+</footer>
+
+<script>
+(function () {
+  const listEl = document.getElementById("list");
+  function load() {
+    try { return JSON.parse(localStorage.getItem("inet_reservations") || "[]"); }
+    catch (e) { return []; }
+  }
+  function render() {
+    const saved = load();
+    if (!saved.length) {
+      listEl.innerHTML = "<div class='empty-note'>現在、予約はありません。<br><a href='index.html'>列車を予約する</a></div>";
+      return;
+    }
+    listEl.innerHTML = "";
+    for (const r of saved) {
+      const card = document.createElement("div");
+      card.className = "train-card";
+      let legsHtml = "";
+      for (const l of r.legs) {
+        legsHtml += "<div class='leg-head'>" + (l.label ? "<span class='res-label'>" + l.label + "</span>" : "") + "<span class='leg-lines'>" + l.lines + "</span><span class='train-name'>" + l.title + "</span>" +
+          "<span class='leg-times'>" + (l.date ? l.date + "／" : "") + l.from + " " + l.dep + "発 → " + l.to + " " + l.arr + "着</span></div>" +
+          "<p class='leg-sub'>" + l.cls + "／" + (l.car ? l.car + "号車／" : "") + "座席：" + l.seats.join("、") +
+          (l.service ? "／" + l.service.meal + (l.service.drink ? "（" + l.service.drink + "）" : "") : "") + "</p>";
+      }
+      card.innerHTML = "<div class='train-top'><span class='train-name'>予約番号 " + r.no + "</span>" +
+        "<span>" + r.date + "／" + r.pax + "名／" + r.total.toLocaleString() + "円</span></div>" + legsHtml +
+        "<div class='res-actions'><button type='button' class='class-btn change-btn'>予約を変更する</button>" +
+        "<a class='class-btn ticket-link' href='ticket.html?id=" + r.id + "'>チケットを表示</a>" +
+        "<button type='button' class='class-btn cancel-btn'>この予約を取り消す</button></div>";
+      card.querySelector(".change-btn").addEventListener("click", () => {
+        const first = r.legs[0];
+        const outLegs = r.legs.filter(l => l.label !== "復路");
+        const outLast = outLegs[outLegs.length - 1];
+        const ret = r.legs.find(l => l.label === "復路");
+        const q = new URLSearchParams({ date: r.date, time: first.dep || "", pax: String(r.pax), cls: "", from: first.from, to: outLast.to, change: r.id });
+        if (ret) { q.set("mode", "round"); q.set("rdate", ret.date || r.date); q.set("rtime", ret.dep || ""); }
+        location.href = "trains.html?" + q.toString();
+      });
+      card.querySelector(".cancel-btn").addEventListener("click", () => {
+        if (!confirm("予約番号 " + r.no + " を取り消しますか？")) return;
+        const next = load().filter(x => x.id !== r.id);
+        localStorage.setItem("inet_reservations", JSON.stringify(next));
+        render();
+      });
+      listEl.appendChild(card);
+    }
+  }
+  render();
+})();
+</script>
+</body>
+</html>

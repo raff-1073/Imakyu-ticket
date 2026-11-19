@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>予約完了｜I-net</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="inet-header">
+  <div class="inet-header-inner">
+    <a class="logo" href="index.html">
+      <span class="logo-main">I-net</span>
+      <span class="logo-sub">今急オンライン予約</span>
+    </a>
+    <nav class="inet-nav">
+      <a href="index.html">列車を予約</a>
+      <a href="calendar.html">空席カレンダー</a>
+      <a href="reservations.html">予約確認・取消</a>
+      <a href="index.html#services">対象サービス</a>
+      <a href="index.html#news">お知らせ</a>
+      <a href="../今急公式サイト/index.html">今急公式サイト</a>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="complete-panel" id="panel">
+    <h2>ご予約が完了しました</h2>
+    <p>予約番号</p>
+    <div class="reserve-no" id="reserveNo"></div>
+    <table class="detail-table" id="detailTable"></table>
+    <p class="demo-note">当日は駅窓口・指定席券売機で、予約番号をお伝えのうえ乗車券をお受け取りください。<br>
+    予約の確認・取消は「予約確認・取消」ページから行えます。<br>
+    ※このサイトは架空の鉄道会社のデモサイトです。実際の予約は行われていません。</p>
+    <a class="back-btn" href="reservations.html">予約確認・取消へ</a>
+    <a class="back-btn" href="index.html" style="background:var(--ink)">トップへ戻る</a>
+  </section>
+</main>
+
+<footer>
+  <p>I-net（アイネット）｜今坂急行電鉄オンライン予約サイト</p>
+  <p>※このサイトは架空の鉄道会社のデモサイトです。実際の予約・決済は行われません。</p>
+</footer>
+
+<script src="js/data.js"></script>
+<script src="js/app.js"></script>
+<script>
+(function () {
+  const raw = sessionStorage.getItem("inet_booking");
+  if (!raw) {
+    document.getElementById("panel").innerHTML = "<h2>予約情報が見つかりませんでした</h2><a class='back-btn' href='index.html'>トップへ戻る</a>";
+    return;
+  }
+  const booking = JSON.parse(raw);
+  const legs = booking.legs.map(l => ({ ...l, train: findTrain(l.key) }));
+  if (legs.some(l => !l.train || !l.seats || !l.seats.length)) {
+    document.getElementById("panel").innerHTML = "<h2>予約情報が不完全です</h2><a class='back-btn' href='index.html'>トップへ戻る</a>";
+    return;
+  }
+  const jp = bookingPrice(legs.map(l => ({ train: l.train, from: l.from, to: l.to, cls: l.cls, label: l.label || null })));
+  // 予約変更の場合は元の予約番号を引き継ぐ
+  let oldEntry = null;
+  try {
+    const saved0 = JSON.parse(localStorage.getItem("inet_reservations") || "[]");
+    if (booking.changeOf) oldEntry = saved0.find(r => r.id === booking.changeOf) || null;
+  } catch (e) {}
+  const seed = hashSeed(booking.id + "|" + booking.date);
+  const reserveNo = oldEntry ? oldEntry.no : "IN" + booking.date.replace(/-/g, "").slice(2) + "-" + String(seed % 1000000).padStart(6, "0");
+  if (oldEntry) document.querySelector(".complete-panel h2").textContent = "予約を変更しました";
+  document.getElementById("reserveNo").textContent = reserveNo;
+
+  const dateText = booking.roundTrip && legs.length ? ("往路 " + (legs[0].date || booking.date) + "／復路 " + (legs[legs.length - 1].date || booking.date)) : booking.date;
+  const rows = [["予約番号", reserveNo], ["乗車日", dateText], ["人数", booking.pax + "名"]];
+  legs.forEach((leg, li) => {
+    const dep = trainTimeAt(leg.train, leg.from), arr = trainTimeAt(leg.train, leg.to);
+    rows.push([(leg.label || ("区間" + (li + 1))) + (leg.date ? "（" + leg.date + "）" : ""),
+      leg.train.lines.join("・") + " " + trainTitle(leg.train) + "<br>" +
+      leg.from + " " + dep + "発 → " + leg.to + " " + arr + "着<br>" +
+      leg.cls + "／" + (leg.car ? leg.car + "号車／" : "") + "座席：" + leg.seats.join("、") +
+      (leg.service ? "<br>セレストサービス：" + leg.service.meal + (leg.service.drink ? "／ドリンク：" + leg.service.drink : "") : "")]);
+  });
+  if (jp) {
+    for (const i of jp.items) rows.push([i.label + "（1名）", yen(i.amount)]);
+    rows.push(["お支払い金額", "<strong>" + yen(jp.total * booking.pax) + "</strong>"]);
+  }
+  document.getElementById("detailTable").innerHTML =
+    rows.map(([k, v]) => "<tr><th>" + k + "</th><td>" + v + "</td></tr>").join("");
+  const tlink = document.createElement("p");
+  tlink.innerHTML = "<a class='back-btn' href='ticket.html?id=" + (booking.changeOf || booking.id) + "'>チケットを表示する</a>";
+  document.getElementById("panel").appendChild(tlink);
+
+  // 予約を保存（同じ予約の二重保存はしない。変更の場合は元の予約を差し替える）
+  try {
+    const saved = JSON.parse(localStorage.getItem("inet_reservations") || "[]");
+    const changeIdx = booking.changeOf ? saved.findIndex(r => r.id === booking.changeOf) : -1;
+    if (changeIdx >= 0 || !saved.some(r => r.id === booking.id)) {
+      const entry = {
+        id: changeIdx >= 0 ? booking.changeOf : booking.id, no: reserveNo, date: booking.date, pax: booking.pax,
+        total: jp ? jp.total * booking.pax : 0,
+        legs: legs.map(l => ({
+          title: trainTitle(l.train), lines: l.train.lines.join("・"),
+          from: l.from, to: l.to, dep: trainTimeAt(l.train, l.from), arr: trainTimeAt(l.train, l.to),
+          cls: l.cls, car: l.car || null, seats: l.seats, date: l.date || booking.date, label: l.label || null, service: l.service || null
+        })),
+        createdAt: changeIdx >= 0 ? saved[changeIdx].createdAt : new Date().toISOString()
+      };
+      if (changeIdx >= 0) { entry.changedAt = new Date().toISOString(); saved[changeIdx] = entry; }
+      else saved.unshift(entry);
+      localStorage.setItem("inet_reservations", JSON.stringify(saved.slice(0, 20)));
+    }
+  } catch (e) { /* 保存できなくても完了画面は表示する */ }
+})();
+</script>
+</body>
+</html>
