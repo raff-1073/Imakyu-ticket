@@ -111,7 +111,7 @@
     }
     function renderMap() {
       mapEl.innerHTML = "";
-      const reserved = reservedSeats(leg.train.key, leg.date, leg.cls, selCar[li]);
+      const reserved = reservedSeats(leg.train, leg.date, leg.cls, selCar[li]);
       for (const row of seatLayout(leg.cls)) {
         const rowEl = document.createElement("div");
         rowEl.className = "seat-row";
@@ -186,7 +186,7 @@
   document.getElementById("autoBtn").addEventListener("click", () => {
     const pref = document.getElementById("prefSel").value;
     legs.forEach((leg, li) => {
-      const reserved = reservedSeats(leg.train.key, leg.date, leg.cls, selCar[li]);
+      const reserved = reservedSeats(leg.train, leg.date, leg.cls, selCar[li]);
       const layout = seatLayout(leg.cls);
       const free = [];
       for (const row of layout) for (const s of row.seats) if (s && !reserved.has(s)) free.push(s);

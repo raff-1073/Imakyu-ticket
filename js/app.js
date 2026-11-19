@@ -311,14 +311,32 @@ function carsFor(train, cls) {
   if (name.includes("水谷")) return [2, 3];
   return [2, 3, 4, 5];
 }
-function reservedSeats(trainKey, date, cls, car) {
+// 列車・クラスの人気度（0〜1）。寝台特急と個室・セレスト、すいせいは取りにくい（2026-11-19 リアル化）
+function trainPopularity(train, cls) {
+  const name = (train && train.name) || "";
+  const type = (train && train.type) || "";
+  if (ROOM_CLASSES.includes(cls) || cls === "セレストクラス") return 0.92;
+  if (type.includes("寝") || name.includes("秋川") || name === "銀鳥" || name === "天空" || name.includes("水谷")) return 0.87;
+  if (name.includes("すいせい")) return 0.84;
+  if (train && train.lines.some(l => HS_LINES.includes(l))) return 0.62;
+  if (LINER_TYPES.includes(type)) return 0.48;
+  return 0.58;
+}
+function reservedSeats(train, date, cls, car) {
+  const trainKey = train.key || train;
   const ids = allSeatIds(cls);
   const rnd = mulberry32(hashSeed(date + "|" + trainKey + "|" + cls + "|" + car));
-  const r = rnd();
-  let ratio;
-  if (r < 0.5) ratio = rnd() * 0.45;
-  else if (r < 0.88) ratio = 0.78 + rnd() * 0.2;
-  else ratio = 1;
+  // 乗車日が近づくほど埋まる：発売直後（31日前）は人気度の45%、当日は人気度そのまま
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const target = new Date(date + "T00:00:00");
+  let daysLeft = Math.round((target - today) / 86400000);
+  if (isNaN(daysLeft)) daysLeft = 31;
+  daysLeft = Math.max(0, Math.min(31, daysLeft));
+  const dateFactor = 1 - daysLeft / 31;
+  const curve = 0.45 + 0.55 * Math.pow(dateFactor, 1.15);
+  let ratio = trainPopularity(train, cls) * curve * (0.88 + rnd() * 0.24);
+  if (ratio > 0.93 && rnd() < 0.55) ratio = 1;
+  ratio = Math.min(1, Math.max(0, ratio));
   const count = Math.floor(ids.length * ratio);
   const shuffled = [...ids];
   for (let i = shuffled.length - 1; i > 0; i--) {
@@ -335,12 +353,12 @@ function vacancyOf(trainKey, date, cls, reserved) {
   return { mark: "○", cls: "ok", left };
 }
 function vacancyMarkCar(train, date, cls, car) {
-  return vacancyOf(train.key, date, cls, reservedSeats(train.key, date, cls, car).size);
+  return vacancyOf(train.key, date, cls, reservedSeats(train, date, cls, car).size);
 }
 function vacancyMark(train, date, cls) {
   const cars = carsFor(train, cls);
   let reservedTotal = 0;
-  for (const car of cars) reservedTotal += reservedSeats(train.key, date, cls, car).size;
+  for (const car of cars) reservedTotal += reservedSeats(train, date, cls, car).size;
   const total = allSeatIds(cls).length * cars.length;
   const left = total - reservedTotal;
   if (left === 0) return { mark: "×", cls: "full", left };
