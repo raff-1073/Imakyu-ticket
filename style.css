@@ -61,7 +61,7 @@ a { color: var(--primary-dark); }
   padding: 20px; margin-top: -34px; position: relative; z-index: 2;
 }
 .search-panel h2 { margin: 0 0 12px; font-size: 17px; color: var(--primary-dark); }
-.search-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+.search-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
 .field label { display: block; font-size: 12px; font-weight: 700; color: var(--muted); margin-bottom: 4px; }
 .field input, .field select {
   width: 100%; padding: 10px; font-size: 16px; border: 1.5px solid var(--line);
@@ -180,7 +180,7 @@ footer {
 }
 
 @media (max-width: 760px) {
-  .search-grid { grid-template-columns: 1fr 1fr; }
+  .search-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .station-row { grid-column: span 2; }
   .search-btn { grid-column: span 2; }
   .cards, .steps { grid-template-columns: 1fr; }
@@ -352,3 +352,10 @@ footer {
 
 .cls-chip:disabled { opacity: .5; cursor: not-allowed; background: #f2f5f7; }
 .cls-chip:disabled .vacancy { color: var(--danger); }
+
+/* 日付・時刻の入力枠がスマホではみ出す対策（2026-11-19）
+   iOSの日時入力は固有の最小幅を持つため、外観をリセットして必ず枠内に収める */
+input[type="date"], input[type="time"] { display: block; width: 100%; min-width: 0; max-width: 100%; }
+@media (max-width: 760px) {
+  input[type="date"], input[type="time"] { -webkit-appearance: none; appearance: none; }
+}
