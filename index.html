@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>I-net｜今急オンライン予約サイト</title>
-<meta name="description" content="今坂急行電鉄のオンライン予約サイト「I-net」。特急・セレストクラス・ノーブルカーの指定席がネットで予約できます。">
+<meta name="description" content="今坂急行電鉄のオンライン予約サイト「I-net」。特急・セレストクラス・ノーブルカーの指定席予約と、普通列車の乗車券購入ができます。">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -119,6 +119,11 @@
         <p>高速線・在来線の全特急列車とライナーの指定席を予約できます。座席は座席表からお選びいただけます。</p>
       </div>
       <div class="card">
+        <span class="tag">全列車検索</span>
+        <h3>普通列車・乗車券</h3>
+        <p>全線の普通列車まで検索できるようになりました。普通列車だけの区間は乗車券のみ購入でき、特急との乗り継ぎも運賃を通算してご案内します。</p>
+      </div>
+      <div class="card">
         <span class="tag">寝台特急</span>
         <h3>個室（寝台）</h3>
         <p>ナイトエクスプレス秋川のSUYARIN・A個室・B個室、銀鳥のS・A・B個室が予約できます。個室料金は特急料金に寝台料金を加えた金額です（SUYARINは特急券のみ）。</p>
@@ -138,6 +143,7 @@
   <section class="section" id="news">
     <h2>お知らせ</h2>
     <div class="news-list">
+      <div class="news-item"><span class="news-date">2026.11.19</span><span>普通列車を含む全列車の検索に対応しました。普通列車だけの区間は乗車券のみ、特急との乗り継ぎも通しで購入できます。</span></div>
       <div class="news-item"><span class="news-date">2026.11.18</span><span>予約変更・空席カレンダー・チケット表示・お気に入り区間に対応しました。</span></div>
       <div class="news-item"><span class="news-date">2026.11.18</span><span>往復予約に対応しました。行きと帰りを続けて予約できます。</span></div>
       <div class="news-item"><span class="news-date">2026.11.18</span><span>在来線特急・寝台特急（個室）・ライナーの予約と、乗換区間の予約に対応しました。</span></div>
@@ -172,6 +178,8 @@
   rdateInput.value = iso(today);
   rdateInput.min = iso(today);
   rdateInput.max = iso(max);
+  watchDateTime(dateInput, document.getElementById("time"));
+  watchDateTime(rdateInput, document.getElementById("rtime"));
   const tripType = document.getElementById("tripType");
   tripType.addEventListener("change", () => {
     const round = tripType.value === "round";

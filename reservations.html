@@ -57,7 +57,7 @@
       for (const l of r.legs) {
         legsHtml += "<div class='leg-head'>" + (l.label ? "<span class='res-label'>" + l.label + "</span>" : "") + "<span class='leg-lines'>" + l.lines + "</span><span class='train-name'>" + l.title + "</span>" +
           "<span class='leg-times'>" + (l.date ? l.date + "／" : "") + l.from + " " + l.dep + "発 → " + l.to + " " + l.arr + "着</span></div>" +
-          "<p class='leg-sub'>" + l.cls + "／" + (l.car ? l.car + "号車／" : "") + "座席：" + l.seats.join("、") +
+          "<p class='leg-sub'>" + (l.cls ? l.cls + "／" + (l.car ? l.car + "号車／" : "") + "座席：" + l.seats.join("、") : "乗車券のみ（座席指定なし）") +
           (l.service ? "／" + l.service.meal + (l.service.drink ? "（" + l.service.drink + "）" : "") : "") + "</p>";
       }
       card.innerHTML = "<div class='train-top'><span class='train-name'>予約番号 " + r.no + "</span>" +

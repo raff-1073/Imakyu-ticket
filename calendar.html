@@ -76,6 +76,7 @@
   const iso = d => d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
   const startInput = document.getElementById("start");
   startInput.value = iso(new Date());
+  watchDateTime(startInput, null);
   function stationIndex(train, station) { return train.times.findIndex(([s]) => s === station); }
   function onSale(dateStr) {
     const parts = dateStr.split("-").map(Number);

@@ -54,7 +54,7 @@
   }
   const booking = JSON.parse(raw);
   const legs = booking.legs.map(l => ({ ...l, train: findTrain(l.key) }));
-  if (legs.some(l => !l.train || !l.seats || !l.seats.length)) {
+  if (legs.some(l => !l.train || (l.cls && (!l.seats || !l.seats.length)))) {
     document.getElementById("panel").innerHTML = "<h2>予約情報が不完全です</h2><a class='back-btn' href='index.html'>トップへ戻る</a>";
     return;
   }
@@ -77,7 +77,7 @@
     rows.push([(leg.label || ("区間" + (li + 1))) + (leg.date ? "（" + leg.date + "）" : ""),
       leg.train.lines.join("・") + " " + trainTitle(leg.train) + "<br>" +
       leg.from + " " + dep + "発 → " + leg.to + " " + arr + "着<br>" +
-      leg.cls + "／" + (leg.car ? leg.car + "号車／" : "") + "座席：" + leg.seats.join("、") +
+      (leg.cls ? leg.cls + "／" + (leg.car ? leg.car + "号車／" : "") + "座席：" + leg.seats.join("、") : "乗車券のみ（座席指定なし）") +
       (leg.service ? "<br>セレストサービス：" + leg.service.meal + (leg.service.drink ? "／ドリンク：" + leg.service.drink : "") : "")]);
   });
   if (jp) {

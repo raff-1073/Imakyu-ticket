@@ -70,6 +70,7 @@
   }
   const selected = legs.map(() => new Set());
   const selCar = legs.map(leg => {
+    if (!leg.cls) return null; // 乗車券のみの区間（普通列車）は座席選択なし
     const cars = carsFor(leg.train, leg.cls);
     return cars.find(c => vacancyMarkCar(leg.train, leg.date, leg.cls, c).left >= pax) ?? cars[0];
   });
@@ -78,6 +79,13 @@
     const panel = document.createElement("section");
     panel.className = "seat-panel";
     const dep = trainTimeAt(leg.train, leg.from), arr = trainTimeAt(leg.train, leg.to);
+    if (!leg.cls) {
+      panel.innerHTML = "<h2>区間" + (li + 1) + "：" + leg.from + " → " + leg.to + "</h2>" +
+        "<p class='leg-sub'>" + (leg.label ? leg.label + "・" + leg.date + "／" : leg.date + "／") + leg.train.lines.join("・") + " " + trainTitle(leg.train) + " " + dep + "発 → " + arr + "着</p>" +
+        "<p class='ticket-only-note'>この区間は普通列車のため、座席指定はありません。乗車券のみでご乗車いただけます。</p>";
+      panelsEl.appendChild(panel);
+      return;
+    }
     panel.innerHTML = "<h2>区間" + (li + 1) + "：" + leg.from + " → " + leg.to + "</h2>" +
       "<p class='leg-sub'>" + (leg.label ? leg.label + "・" + leg.date + "／" : leg.date + "／") + leg.train.lines.join("・") + " " + trainTitle(leg.train) + " " + dep + "発 → " + arr + "着／" + leg.cls + "</p>" +
       "<div class='car-chips'></div><p class='car-fac'></p><div class='svc-box'></div>" +
@@ -169,7 +177,7 @@
     let html = "<dt>乗車日</dt><dd>" + dateText + "</dd><dt>人数</dt><dd>" + pax + "名</dd>";
     legs.forEach((leg, li) => {
       html += "<dt>" + (leg.label || ("区間" + (li + 1))) + "</dt><dd>" + leg.date + "／" + trainTitle(leg.train) + " " + leg.from + "→" + leg.to + "<br>" +
-        leg.cls + "／" + selCar[li] + "号車／座席：" + (selected[li].size ? sortSeats(selected[li]).join("、") : "未選択") + "</dd>";
+        (leg.cls ? leg.cls + "／" + selCar[li] + "号車／座席：" + (selected[li].size ? sortSeats(selected[li]).join("、") : "未選択") : "乗車券のみ（座席指定なし）") + "</dd>";
     });
     if (jp) {
       html += "<dt>お支払い金額</dt><dd class='total-price'>" + yen(jp.total * pax) + "</dd>" +
@@ -177,15 +185,17 @@
         jp.items.map(i => i.label + yen(i.amount)).join("＋") + "）</dd>";
     }
     document.getElementById("summaryDl").innerHTML = html;
-    const done = selected.every(s => s.size === pax);
+    const done = legs.every((leg, li) => !leg.cls || selected[li].size === pax);
+    const allTicketOnly = legs.every(leg => !leg.cls);
     confirmBtn.disabled = !done;
-    confirmBtn.textContent = done ? "この内容で予約する" : "全区間の座席を選んでください";
+    confirmBtn.textContent = done ? (allTicketOnly ? "この内容で購入する" : "この内容で予約する") : "全区間の座席を選んでください";
   }
   renderSummary();
 
   document.getElementById("autoBtn").addEventListener("click", () => {
     const pref = document.getElementById("prefSel").value;
     legs.forEach((leg, li) => {
+      if (!leg.cls) return; // 乗車券のみの区間は自動選択の対象外
       const reserved = reservedSeats(leg.train, leg.date, leg.cls, selCar[li]);
       const layout = seatLayout(leg.cls);
       const free = [];
@@ -219,7 +229,7 @@
 
   confirmBtn.addEventListener("click", () => {
     booking.legs = legs.map((leg, li) => ({
-      key: leg.key, from: leg.from, to: leg.to, cls: leg.cls, car: selCar[li], seats: sortSeats(selected[li]), date: leg.date, label: leg.label || null, service: leg.service || null
+      key: leg.key, from: leg.from, to: leg.to, cls: leg.cls, car: leg.cls ? selCar[li] : null, seats: leg.cls ? sortSeats(selected[li]) : [], date: leg.date, label: leg.label || null, service: leg.service || null
     }));
     sessionStorage.setItem("inet_booking", JSON.stringify(booking));
     location.href = "complete.html";

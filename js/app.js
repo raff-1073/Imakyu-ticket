@@ -40,12 +40,29 @@ const LINER_TYPES = ["ライ", "ライナー"];
 const ROOM_CLASSES = ["B個室", "A個室", "S個室"];
 // 同名・別駅の乗換可否（公式サイト乗換案内と同じ判定）
 const SPLIT_STATION_GROUPS = {
-  "上田": [["黒崎小岩ライン"], ["今宮本線", "大川線"], ["吉田線"]],
+  "上田": [["黒崎小岩ライン"], ["今宮本線", "大川線"], ["吉田線"], ["浜田本線"]],
   "高田": [["松代線"], ["吉田線"]],
   "石川": [["吉田線"], ["水上線・西田線"]],
   "西吉田": [["大川線"], ["水上線・西田線"]],
   "小島": [["朝日線・小出線"], ["水上線・西田線"]],
-  "飯田": [["中央線"], ["中央高速線"]]
+  "飯田": [["中央線"], ["中央高速線"], ["浜田本線"]],
+  "中野": [["水上線・西田線"], ["吹雪環状線"]],
+  "川内": [["中央線"], ["扶桑本線", "浜田本線"]],
+  "倉田": [["中央線"], ["小岩線・小阪線"]],
+  "小川町": [["中央線"], ["拠点本線"]],
+  "森山": [["水上線・西田線"], ["横倉空港線（横倉）"]],
+  "森田": [["水上線・西田線"], ["浜田本線"]],
+  "多田": [["今宮本線"], ["浜田本線"]],
+  "村山": [["今宮本線"], ["浜田本線"]],
+  "塩浜": [["秋川本線"], ["浜田本線", "浜見線"]],
+  "田崎": [["青山線"], ["扶桑本線"]],
+  "羽島": [["今宮本線"], ["吹雪環状線"]],
+  "亀山": [["今宮本線"], ["新沢線"]],
+  "上原": [["北倉線"], ["扶桑本線", "浜田本線"]],
+  "山下": [["北倉線"], ["河津高速線・拠点高速線", "赤津線"]],
+  "新川": [["多田本線"], ["吹雪環状線"]],
+  "田中": [["河田線"], ["赤津線"]],
+  "関原": [["中央線"], ["今宮本線"]]
 };
 
 function tierRow(table, km) {
@@ -370,8 +387,9 @@ function vacancyMark(train, date, cls) {
 const TYPE_LABELS = { "寝特": "寝台特急", "臨寝特": "臨時寝台特急", "臨特急": "臨時特急", "ライ": "ライナー" };
 function trainKey(train) { return train.key; }
 function trainTitle(train) {
-  if (train.name) return train.name + train.number + "号";
-  return (TYPE_LABELS[train.type] || train.type) + train.number + "号";
+  const num = train.number ? train.number + "号" : "";
+  if (train.name) return train.name + num;
+  return (TYPE_LABELS[train.type] || train.type) + num;
 }
 function trainTimeAt(train, station) {
   const hit = train.times.find(([s]) => s === station);
@@ -418,6 +436,9 @@ function resolveStationName(v) {
   const hits = ALL_STATION_NAMES.filter(n => n.includes(v));
   return hits.length === 1 ? hits[0] : null;
 }
+// 主要駅（駅名を知らない人向けに、入力欄フォーカス時に候補として表示する大きな駅）
+const MAJOR_STATIONS = ["有坂", "第一拠点", "東秋津", "今宮", "浜田", "長野", "新赤倉", "横倉空港", "朝日", "水谷", "河合", "鎌中", "本小岩", "東京", "田原市", "吉野", "西秋川", "新熱川"]
+  .filter(n => ALL_STATION_NAMES.includes(n));
 function setupStationAutocomplete(input) {
   const wrap = input.parentElement;
   wrap.classList.add("station-input-wrap");
@@ -428,10 +449,17 @@ function setupStationAutocomplete(input) {
   let items = [], active = -1;
   function render() {
     const v = input.value.trim();
-    items = v ? ALL_STATION_NAMES.filter(n => n.includes(v)).slice(0, 12) : [];
+    const showMajor = !v;
+    items = v ? ALL_STATION_NAMES.filter(n => n.includes(v)).slice(0, 12) : MAJOR_STATIONS;
     active = items.length ? 0 : -1;
     if (!items.length) { box.hidden = true; return; }
     box.innerHTML = "";
+    if (showMajor) {
+      const h = document.createElement("div");
+      h.className = "suggest-head";
+      h.textContent = "主要駅（タップで入力）";
+      box.appendChild(h);
+    }
     items.forEach((n, i) => {
       const d = document.createElement("div");
       d.className = "suggest-item" + (i === active ? " active" : "");
@@ -450,7 +478,7 @@ function setupStationAutocomplete(input) {
     else if (e.key === "ArrowUp") { e.preventDefault(); active = Math.max(active - 1, 0); }
     else if (e.key === "Enter" && active >= 0) { e.preventDefault(); input.value = items[active]; box.hidden = true; return; }
     else return;
-    [...box.children].forEach((c, i) => c.classList.toggle("active", i === active));
+    [...box.querySelectorAll(".suggest-item")].forEach((c, i) => c.classList.toggle("active", i === active));
   });
 }
 
@@ -482,4 +510,34 @@ function trainRunsOnDate(t, dateStr) {
     if (only) return inetDateMatch(only, dateStr);
   }
   return true;
+}
+
+// 日付・時刻の選択範囲を強制する（過去と発売期間外は選べない）
+// iOS Safari は date input の min/max をピッカーに反映しないため、change 時にJSで丸める（2026-11-19）
+function inetDateStr(d) { return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
+function inetTodayStr() { return inetDateStr(new Date()); }
+function inetMaxDateStr() { const t = new Date(); t.setDate(t.getDate() + 31); return inetDateStr(t); }
+function clampDateInput(inp) {
+  if (!inp) return;
+  const today = inetTodayStr(), max = inetMaxDateStr();
+  inp.min = today; inp.max = max;
+  if (inp.value && inp.value < today) inp.value = today;
+  if (inp.value && inp.value > max) inp.value = max;
+}
+function clampTimeInput(dateInp, timeInp) {
+  if (!dateInp || !timeInp) return;
+  if (dateInp.value === inetTodayStr() && timeInp.value) {
+    const now = new Date();
+    const nowStr = String(now.getHours()).padStart(2, "0") + ":" + String(now.getMinutes()).padStart(2, "0");
+    timeInp.min = nowStr;
+    if (timeInp.value < nowStr) timeInp.value = nowStr;
+  } else {
+    timeInp.removeAttribute("min");
+  }
+}
+function watchDateTime(dateInp, timeInp) {
+  clampDateInput(dateInp);
+  clampTimeInput(dateInp, timeInp);
+  if (dateInp) dateInp.addEventListener("change", () => { clampDateInput(dateInp); clampTimeInput(dateInp, timeInp); });
+  if (timeInp) timeInp.addEventListener("change", () => clampTimeInput(dateInp, timeInp));
 }

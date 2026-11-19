@@ -71,7 +71,7 @@
       "<p class='ticket-route'>" + (l.label ? l.label + "：" : "") + l.from + " → " + l.to + "</p>" +
       "<p class='ticket-train'>" + l.lines + " " + l.title + "</p>" +
       "<p class='ticket-time'>" + (l.date || r.date) + "／" + l.dep + "発 → " + l.arr + "着</p>" +
-      "<p class='ticket-seat'>" + l.cls + "／" + (l.car ? l.car + "号車／" : "") + "座席：" + l.seats.join("、") + "</p></div>";
+      "<p class='ticket-seat'>" + (l.cls ? l.cls + "／" + (l.car ? l.car + "号車／" : "") + "座席：" + l.seats.join("、") : "乗車券のみ（座席指定なし）") + "</p></div>";
   }
   area.innerHTML = "<div class='ticket-card'>" +
     "<div class='ticket-head'><span class='ticket-logo'>I-net チケット</span><span class='ticket-no'>" + r.no + "</span></div>" +

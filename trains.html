@@ -56,11 +56,24 @@
   const summaryEl = document.getElementById("summaryLine");
   const outChosenEl = document.getElementById("outChosen");
   function stationIndex(train, station) { return train.times.findIndex(([s]) => s === station); }
+  // 全列車規模でも検索が重くならないよう、単調化時刻と駅インデックスを事前に作る（v26）
+  const uwCache = new Map();
+  function uw(t) { if (!uwCache.has(t)) uwCache.set(t, unwrappedTimes(t)); return uwCache.get(t); }
+  const byStation = new Map();
+  for (const t of TRAINS) {
+    const seen = new Set();
+    t.times.forEach(([st], idx) => {
+      if (seen.has(st)) return;
+      seen.add(st);
+      if (!byStation.has(st)) byStation.set(st, []);
+      byStation.get(st).push({ t, idx });
+    });
+  }
   // 夜行列車の途中駅発車を検索日の枠に直すためのキー。
   // 前日発の列車（銀鳥など）は途中駅の発車が繰り上がり表記（1440超）になるため、
   // そのままでは当日発の列車より後ろに並んで結果から漏れる（2026-11-19）。
   function depFrameMin(train, station, fromMin) {
-    const m = unwrappedTimes(train)[stationIndex(train, station)];
+    const m = uw(train)[stationIndex(train, station)];
     if (m === undefined) return null;
     const clock = m % 1440;
     const inWindow = m >= fromMin && m < fromMin + 1440;
@@ -85,10 +98,9 @@
 
   function trainsBetween(fromSt, toSt, fromMin) {
     const out = [];
-    for (const t of TRAINS) {
-      const times = unwrappedTimes(t);
-      const fi = stationIndex(t, fromSt), ti = stationIndex(t, toSt);
-      if (fi < 0 || ti < 0 || fi >= ti) continue;
+    for (const { t, idx: fi } of byStation.get(fromSt) || []) {
+      const ti = stationIndex(t, toSt);
+      if (ti < 0 || fi >= ti) continue;
       if (depFrameMin(t, fromSt, fromMin) === null) continue;
       out.push({ train: t, from: fromSt, to: toSt });
     }
@@ -100,38 +112,37 @@
     const journeys = [];
     for (const leg of trainsBetween(jFrom, jTo, fromMin)) journeys.push({ legs: [leg], transfer: null });
     const fromLines = new Set(), toLines = new Set();
-    for (const t of TRAINS) {
-      if (stationIndex(t, jFrom) >= 0) for (const l of t.lines) fromLines.add(l);
-      if (stationIndex(t, jTo) >= 0) for (const l of t.lines) toLines.add(l);
-    }
+    for (const { t } of byStation.get(jFrom) || []) for (const l of t.lines) fromLines.add(l);
+    for (const { t } of byStation.get(jTo) || []) for (const l of t.lines) toLines.add(l);
     let disjoint = true;
     for (const l of fromLines) if (toLines.has(l)) { disjoint = false; break; }
-    if (disjoint || journeys.length === 0) {
+    // 直通が夜行だけ等で最速の直通が3時間以上先のときは、乗換候補も併せて出す（v26）
+    const earliestDirect = journeys.length ? depFrameMin(journeys[0].legs[0].train, jFrom, fromMin) : null;
+    if (disjoint || journeys.length === 0 || (earliestDirect !== null && earliestDirect - fromMin >= 180)) {
       const seen = new Set();
       const firstLegs = [];
-      for (const t of TRAINS) {
-        const fi = stationIndex(t, jFrom);
-        if (fi < 0) continue;
+      for (const { t } of byStation.get(jFrom) || []) {
         if (depFrameMin(t, jFrom, fromMin) === null) continue;
         firstLegs.push(t);
       }
-      for (const t1 of firstLegs) {
-        const times1 = unwrappedTimes(t1);
+      firstLegs.sort((a, b) => depFrameMin(a, jFrom, fromMin) - depFrameMin(b, jFrom, fromMin));
+      for (const t1 of firstLegs.slice(0, 80)) {
+        const times1 = uw(t1);
         const fi1 = stationIndex(t1, jFrom);
         for (let xi = fi1 + 1; xi < t1.times.length; xi++) {
           const x = t1.times[xi][0];
           if (x === jTo) continue;
           const arrX = times1[xi];
-          for (const t2 of TRAINS) {
+          for (const { t: t2, idx: xi2 } of byStation.get(x) || []) {
             if (t2 === t1) continue;
-            const xi2 = stationIndex(t2, x), ti2 = stationIndex(t2, jTo);
-            if (xi2 < 0 || ti2 < 0 || xi2 >= ti2) continue;
+            const ti2 = stationIndex(t2, jTo);
+            if (ti2 < 0 || xi2 >= ti2) continue;
             if (!canTransferAt(x, t1.lines, t2.lines)) continue;
-            let wait = unwrappedTimes(t2)[xi2] - arrX;
+            let wait = uw(t2)[xi2] - arrX;
             // 第2レグが前日発の夜行列車（秋川など）の場合、発車は繰り上がり表記（1440超）に
             // なる。翌日運行として解釈できるのは第2レグが当日運行の列車だけなので、
             // 繰り上がり済みの発車には +1440 しない（赤城→秋川の誤接続防止・2026-11-19）
-            if (wait < 0 && unwrappedTimes(t2)[xi2] < 1440) wait += 1440; // 夜行列車の翌朝接続（第2レグは翌日運行として解釈）
+            if (wait < 0 && uw(t2)[xi2] < 1440) wait += 1440; // 夜行列車の翌朝接続（第2レグは翌日運行として解釈）
             if (wait < 0 || wait > 180) continue;
             const key = t1.key + ">" + x + ">" + t2.key;
             if (seen.has(key)) continue;
@@ -159,6 +170,7 @@
   }
   function defaultSel(journey, jDate) {
     return journey.legs.map(leg => {
+      if (!leg.train.reservable) return null;
       const pool = legClasses(leg);
       if (clsPref && pool.includes(clsPref) && vacancyMark(leg.train, jDate, clsPref).mark !== "×") return clsPref;
       return pool.find(c => vacancyMark(leg.train, jDate, c).mark !== "×") || pool[0];
@@ -204,10 +216,11 @@
       card.className = "train-card";
       const first = journey.legs[0], last = journey.legs[journey.legs.length - 1];
       const dep = trainTimeAt(first.train, first.from), arr = trainTimeAt(last.train, last.to);
-      const dur = fmtDuration(unwrappedTimes(last.train)[stationIndex(last.train, last.to)] - unwrappedTimes(first.train)[stationIndex(first.train, first.from)]);
+      const dur = fmtDuration(uw(last.train)[stationIndex(last.train, last.to)] - uw(first.train)[stationIndex(first.train, first.from)]);
       let html = "<div class='train-head'><div class='train-time'><span class='big'>" + dep + "発 → " + arr + "着</span>" +
         "<span class='dur'>（" + dur + "）</span></div>" +
-        (journey.transfer ? "<span class='badge-transfer'>乗換1回（" + journey.transfer.station + "）</span>" : "") + "</div>";
+        (journey.transfer ? "<span class='badge-transfer'>乗換1回（" + journey.transfer.station + "）</span>" : "") +
+        (journey.legs.every(l => !l.train.reservable) ? "<span class='badge-ticket'>乗車券のみ</span>" : "") + "</div>";
       journey.legs.forEach((leg, li) => {
         if (li > 0) {
           html += "<p class='transfer-note'>" + journey.transfer.station + "駅で乗換（待ち時間 " + journey.transfer.wait + "分）</p>";
@@ -226,6 +239,10 @@
         journey.legs.forEach((leg, li) => {
           const box = chipBoxes[li];
           box.innerHTML = "";
+          if (!leg.train.reservable) {
+            box.innerHTML = "<span class='cls-chip ticket-only'>乗車券のみ（座席指定なし）</span>";
+            return;
+          }
           for (const cls of legClasses(leg)) {
             const v = vacancyMark(leg.train, jDate, cls);
             const chip = document.createElement("button");
@@ -241,11 +258,12 @@
       }
       function renderTotal() {
         const jp = journeyPrice(journey.legs.map((leg, li) => ({ train: leg.train, from: leg.from, to: leg.to, cls: sel[li] })));
-        const full = journey.legs.some((leg, li) => vacancyMark(leg.train, jDate, sel[li]).mark === "×");
+        const full = journey.legs.some((leg, li) => leg.train.reservable && vacancyMark(leg.train, jDate, sel[li]).mark === "×");
         totalEl.textContent = jp ? (pax === 1 ? "大人1名 " + yen(jp.total) : "大人" + pax + "名 " + yen(jp.total * pax) + "／1名 " + yen(jp.total)) : "料金を計算できません";
         const sale = onSale(jDate);
+        const ticketOnly = journey.legs.every(l => !l.train.reservable);
         proceedBtn.disabled = !jp || full || !sale;
-        proceedBtn.textContent = !sale ? "発売前です（1か月前から発売）" : full ? "選択中の設備は満席です" : (round && isOut ? "この往路で復路を選ぶ" : "座席を選ぶ");
+        proceedBtn.textContent = !sale ? "発売前です（1か月前から発売）" : full ? "選択中の設備は満席です" : (round && isOut ? "この往路で復路を選ぶ" : ticketOnly ? "乗車券を購入する" : "座席を選ぶ");
       }
       renderChips();
       renderTotal();

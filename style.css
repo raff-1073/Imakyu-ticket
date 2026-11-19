@@ -261,6 +261,7 @@ footer {
 .fav-chip .fav-del { color: #b3261e; font-weight: 700; padding: 0 4px; }
 .station-input-wrap { position: relative; }
 .station-suggest { position: absolute; left: 0; right: 0; top: 100%; z-index: 30; background: #fff; border: 1.5px solid var(--primary); border-radius: 0 0 10px 10px; box-shadow: 0 8px 20px rgba(16,42,67,.18); max-height: 264px; overflow-y: auto; }
+.suggest-head { padding: 7px 12px 3px; font-size: 12px; font-weight: 700; color: var(--muted); }
 .suggest-item { padding: 9px 12px; cursor: pointer; font-size: 15px; }
 .suggest-item:hover, .suggest-item.active { background: #eefaf5; }
 
@@ -359,3 +360,9 @@ input[type="date"], input[type="time"] { display: block; width: 100%; min-width:
 @media (max-width: 760px) {
   input[type="date"], input[type="time"] { -webkit-appearance: none; appearance: none; }
 }
+
+/* 乗車券のみの区間（普通列車）の表示（v26） */
+.cls-chip.ticket-only{ background:#eef2f5; color:#5a6a75; border:1px dashed #b9c6cf; cursor:default; }
+.ticket-only-note{ background:#eef6f1; border:1px solid #bcd8c6; border-radius:8px; padding:12px 14px; color:#33523f; font-size:14px; }
+
+.badge-ticket{ background:#eef2f5; color:#5a6a75; border:1px solid #b9c6cf; border-radius:999px; padding:2px 10px; font-size:12px; font-weight:700; }
