@@ -339,6 +339,29 @@ function trainPopularity(train, cls) {
   if (LINER_TYPES.includes(type)) return 0.48;
   return 0.58;
 }
+// このブラウザで予約済みの座席（localStorageの予約記録から。二重予約防止・2026-11-20）
+// 予約変更中の予約（sessionStorageのchangeOf）は差し替え対象なので除外する
+function userBookedSeats(train, date, cls, car) {
+  const out = new Set();
+  let saved = [];
+  try { saved = JSON.parse(localStorage.getItem("inet_reservations") || "[]"); } catch (e) { return out; }
+  let changeOf = null;
+  try {
+    const b = JSON.parse(sessionStorage.getItem("inet_booking") || "null");
+    if (b && b.changeOf) changeOf = b.changeOf;
+  } catch (e) {}
+  for (const r of saved) {
+    if (changeOf && r.id === changeOf) continue;
+    for (const l of (r.legs || [])) {
+      if (!l.cls || l.cls !== cls || l.car !== car) continue;
+      if ((l.date || r.date) !== date) continue;
+      const sameTrain = (l.key && train.key) ? l.key === train.key
+        : (trainTitle(train) === l.title && trainTimeAt(train, l.from) === l.dep && trainTimeAt(train, l.to) === l.arr);
+      if (sameTrain) for (const s of (l.seats || [])) out.add(s);
+    }
+  }
+  return out;
+}
 function reservedSeats(train, date, cls, car) {
   const trainKey = train.key || train;
   const ids = allSeatIds(cls);
@@ -360,7 +383,10 @@ function reservedSeats(train, date, cls, car) {
     const j = Math.floor(rnd() * (i + 1));
     [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
   }
-  return new Set(shuffled.slice(0, count));
+  const reserved = new Set(shuffled.slice(0, count));
+  // 自分が予約済みの座席も「予約済み」に含める（同じ座席を二重に買えないように）
+  for (const s of userBookedSeats(train, date, cls, car)) reserved.add(s);
+  return reserved;
 }
 function vacancyOf(trainKey, date, cls, reserved) {
   const total = allSeatIds(cls).length;

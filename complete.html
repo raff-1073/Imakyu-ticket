@@ -99,6 +99,7 @@
         id: changeIdx >= 0 ? booking.changeOf : booking.id, no: reserveNo, date: booking.date, pax: booking.pax,
         total: jp ? jp.total * booking.pax : 0,
         legs: legs.map(l => ({
+          key: l.key || null,
           title: trainTitle(l.train), lines: l.train.lines.join("・"),
           from: l.from, to: l.to, dep: trainTimeAt(l.train, l.from), arr: trainTimeAt(l.train, l.to),
           cls: l.cls, car: l.car || null, seats: l.seats, date: l.date || booking.date, label: l.label || null, service: l.service || null
